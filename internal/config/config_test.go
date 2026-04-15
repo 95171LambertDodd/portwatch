@@ -79,6 +79,22 @@ func TestLoad_InvalidInterval(t *testing.T) {
 	}
 }
 
+func TestLoad_InvalidYAML(t *testing.T) {
+	content := []byte("scan_interval: [not: valid: yaml\n")
+	f, err := os.CreateTemp("", "portwatch-cfg-*.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(f.Name())
+	f.Write(content)
+	f.Close()
+
+	_, err = Load(f.Name())
+	if err == nil {
+		t.Fatal("expected error for malformed YAML")
+	}
+}
+
 func TestIsIgnored(t *testing.T) {
 	cfg := &Config{IgnoredPorts: []int{22, 8080}}
 	if !cfg.IsIgnored(22) {
