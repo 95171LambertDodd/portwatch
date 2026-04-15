@@ -58,6 +58,30 @@ func TestParseProcNet_ValidContent(t *testing.T) {
 	}
 }
 
+func TestParseProcNet_EmptyFile(t *testing.T) {
+	// A file with only the header line should return zero entries
+	content := `  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode
+`
+	tmpFile, err := os.CreateTemp("", "proc_net_tcp_empty_*")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+
+	if _, err := tmpFile.WriteString(content); err != nil {
+		t.Fatalf("failed to write temp file: %v", err)
+	}
+	tmpFile.Close()
+
+	entries, err := parseProcNet(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("expected 0 entries, got %d", len(entries))
+	}
+}
+
 func TestScan_ReturnsNoError(t *testing.T) {
 	s := NewScanner()
 	// Scan should not return an error even if /proc/net/tcp doesn't exist
