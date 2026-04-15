@@ -16,6 +16,7 @@ const (
 	AlertNewBinding    AlertType = "NEW_BINDING"
 	AlertConflict      AlertType = "CONFLICT"
 	AlertUnexpected    AlertType = "UNEXPECTED"
+	AlertRemovedBinding AlertType = "REMOVED_BINDING"
 )
 
 // Alert holds details about a detected port event.
@@ -45,7 +46,7 @@ func NewAlerter(w io.Writer) *Alerter {
 }
 
 // Diff compares a fresh snapshot against the previously known state and
-// returns any alerts for newly appeared bindings.
+// returns alerts for newly appeared or disappeared bindings.
 func (a *Alerter) Diff(current []portscanner.PortEntry) []Alert {
 	var alerts []Alert
 
@@ -60,6 +61,18 @@ func (a *Alerter) Diff(current []portscanner.PortEntry) []Alert {
 				Type:      AlertNewBinding,
 				Entry:     e,
 				Message:   fmt.Sprintf("new binding detected on %s:%d (pid %d)", e.LocalAddr, e.LocalPort, e.PID),
+			})
+		}
+	}
+
+	// Detect bindings that were present before but are no longer in the snapshot.
+	for key, e := range a.known {
+		if _, stillPresent := currentMap[key]; !stillPresent {
+			alerts = append(alerts, Alert{
+				Timestamp: time.Now(),
+				Type:      AlertRemovedBinding,
+				Entry:     e,
+				Message:   fmt.Sprintf("binding removed on %s:%d (pid %d)", e.LocalAddr, e.LocalPort, e.PID),
 			})
 		}
 	}
