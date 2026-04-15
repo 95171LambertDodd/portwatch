@@ -77,3 +77,9 @@ func (c *Config) IsWatched(port int) bool {
 	}
 	return false
 }
+
+// ShouldAlert reports whether an alert should be raised for the given port.
+// A port should trigger an alert if it is watched and not ignored.
+func (c *Config) ShouldAlert(port int) bool {
+	return c.IsWatched(port) && !c.IsIgnored(port)
+}
