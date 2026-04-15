@@ -2,93 +2,101 @@ package portscanner
 
 import (
 	"bufio"
+	"encoding/hex"
 	"fmt"
+	"net"
 	"os"
 	"strconv"
 	"strings"
 )
 
-// PortEntry represents a single bound port entry on the system.
+// PortEntry represents a single listening port binding observed on the host.
 type PortEntry struct {
-	Protocol string
-	LocalAddress string
-	LocalPort int
-	PID int
-	State string
+	Protocol     string `json:"protocol"`
+	LocalAddress string `json:"local_address"`
+	LocalPort    int    `json:"local_port"`
+	PID          int    `json:"pid"`
+	State        string `json:"state"`
 }
 
-// Scanner reads active port bindings from the system.
-type Scanner struct{}
+// Scanner reads port bindings from /proc/net.
+type Scanner struct {
+	procNetTCP  string
+	procNetTCP6 string
+}
 
-// NewScanner creates a new Scanner instance.
+// NewScanner returns a Scanner pointed at the standard /proc/net paths.
 func NewScanner() *Scanner {
-	return &Scanner{}
+	return &Scanner{
+		procNetTCP:  "/proc/net/tcp",
+		procNetTCP6: "/proc/net/tcp6",
+	}
 }
 
-// Scan reads /proc/net/tcp and /proc/net/tcp6 and returns active port entries.
+// Scan returns all currently listening TCP port entries.
 func (s *Scanner) Scan() ([]PortEntry, error) {
 	var entries []PortEntry
-
-	for _, path := range []string{"/proc/net/tcp", "/proc/net/tcp6"} {
-		results, err := parseProcNet(path)
-		if err != nil {
-			// Non-fatal: file may not exist on all systems
-			continue
+	for _, path := range []string{s.procNetTCP, s.procNetTCP6} {
+		e, err := parseProcNet(path, "tcp")
+		if err != nil && !os.IsNotExist(err) {
+			return nil, err
 		}
-		entries = append(entries, results...)
+		entries = append(entries, e...)
 	}
-
 	return entries, nil
 }
 
-// parseProcNet parses a /proc/net/tcp or /proc/net/tcp6 file.
-func parseProcNet(path string) ([]PortEntry, error) {
+// parseProcNet parses a /proc/net/tcp[6] file and returns LISTEN entries.
+func parseProcNet(path, proto string) ([]PortEntry, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, fmt.Errorf("open %s: %w", path, err)
+		return nil, err
 	}
 	defer f.Close()
 
 	var entries []PortEntry
 	scanner := bufio.NewScanner(f)
-
-	// Skip header line
-	if scanner.Scan() {
-		_ = scanner.Text()
-	}
-
+	scanner.Scan() // skip header
 	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		fields := strings.Fields(line)
-		if len(fields) < 10 {
+		fields := strings.Fields(scanner.Text())
+		if len(fields) < 4 {
 			continue
 		}
-
-		localAddrPort := fields[1]
 		state := fields[3]
-		// Only LISTEN state (0A)
-		if state != "0A" {
+		if state != "0A" { // 0A = TCP_LISTEN
 			continue
 		}
-
-		parts := strings.Split(localAddrPort, ":")
-		if len(parts) != 2 {
-			continue
-		}
-
-		portHex := parts[1]
-		port, err := strconv.ParseInt(portHex, 16, 32)
+		addr, port, err := parseHexAddr(fields[1])
 		if err != nil {
 			continue
 		}
-
 		entries = append(entries, PortEntry{
-			Protocol:     "tcp",
-			LocalAddress: parts[0],
-			LocalPort:    int(port),
+			Protocol:     proto,
+			LocalAddress: addr,
+			LocalPort:    port,
 			State:        "LISTEN",
 		})
 	}
-
 	return entries, scanner.Err()
+}
+
+func parseHexAddr(s string) (string, int, error) {
+	parts := strings.SplitN(s, ":", 2)
+	if len(parts) != 2 {
+		return "", 0, fmt.Errorf("invalid addr %q", s)
+	}
+	rawIP, err := hex.DecodeString(parts[0])
+	if err != nil {
+		return "", 0, err
+	}
+	// reverse byte order for little-endian representation
+	for i, j := 0, len(rawIP)-1; i < j; i, j = i+1, j-1 {
+		rawIP[i], rawIP[j] = rawIP[j], rawIP[i]
+	}
+	ip := net.IP(rawIP).String()
+	port, err := strconv.ParseInt(parts[1], 16, 32)
+	if err != nil {
+		return "", 0, err
+	}
+	return ip, int(port), nil
 }

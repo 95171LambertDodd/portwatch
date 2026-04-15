@@ -8,50 +8,67 @@ import (
 	"github.com/user/portwatch/internal/alerting"
 	"github.com/user/portwatch/internal/config"
 	"github.com/user/portwatch/internal/portscanner"
+	"github.com/user/portwatch/internal/snapshot"
 )
 
-// Watcher periodically scans ports and emits alerts on changes.
+// Watcher orchestrates periodic port scanning, diffing, alerting, and snapshotting.
 type Watcher struct {
-	scanner  *portscanner.Scanner
-	alerter  *alerting.Alerter
-	cfg      *config.Config
+	cfg     config.Config
+	scanner *portscanner.Scanner
+	alerter *alerting.Alerter
+	store   *snapshot.Store
 }
 
-// New creates a new Watcher using the provided config.
-func New(cfg *config.Config, scanner *portscanner.Scanner, alerter *alerting.Alerter) *Watcher {
+// New constructs a Watcher from the provided configuration.
+func New(cfg config.Config) *Watcher {
 	return &Watcher{
-		scanner: scanner,
-		alerter: alerter,
 		cfg:     cfg,
+		scanner: portscanner.NewScanner(),
+		alerter: alerting.NewAlerter(),
+		store:   snapshot.NewStore(cfg.SnapshotPath),
 	}
 }
 
-// Run starts the watch loop, scanning at the configured interval until ctx is cancelled.
+// Run starts the watch loop. It blocks until ctx is cancelled.
 func (w *Watcher) Run(ctx context.Context) error {
 	ticker := time.NewTicker(w.cfg.Interval)
 	defer ticker.Stop()
 
-	log.Printf("portwatch: starting watcher (interval=%s)", w.cfg.Interval)
+	// Perform an immediate tick on startup.
+	if err := w.tick(); err != nil {
+		log.Printf("[portwatch] initial scan error: %v", err)
+	}
 
 	for {
 		select {
-		case <-ctx.Done():
-			log.Println("portwatch: watcher stopped")
-			return ctx.Err()
 		case <-ticker.C:
 			if err := w.tick(); err != nil {
-				log.Printf("portwatch: scan error: %v", err)
+				log.Printf("[portwatch] scan error: %v", err)
 			}
+		case <-ctx.Done():
+			return ctx.Err()
 		}
 	}
 }
 
-// tick performs a single scan cycle.
 func (w *Watcher) tick() error {
-	entries, err := w.scanner.Scan()
+	prev, err := w.store.Load()
 	if err != nil {
 		return err
 	}
-	w.alerter.Diff(entries)
-	return nil
+
+	current, err := w.scanner.Scan()
+	if err != nil {
+		return err
+	}
+
+	alerts := w.alerter.Diff(prev.Entries, current)
+	for _, a := range alerts {
+		w.alerter.Emit(a)
+	}
+
+	return w.store.Save(snapshot.Snapshot{
+		CapturedAt: time.Now().UTC(),
+		Entries:    current,
+	})
 }
