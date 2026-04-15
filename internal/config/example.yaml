@@ -1,0 +1,22 @@
+# portwatch configuration file
+
+# How often to scan /proc/net/tcp for port bindings.
+# Accepts Go duration strings: 1s, 500ms, 1m, etc.
+scan_interval: 5s
+
+# Where to write alerts. Options: "stdout", "stderr", or a file path.
+alert_output: stdout
+
+# Explicit list of ports to watch. Leave empty to watch ALL ports.
+# watched_ports:
+#   - 80
+#   - 443
+#   - 8080
+
+# Ports to suppress alerts for (e.g. well-known, always-expected services).
+ignored_ports:
+  - 22
+
+# Paths to proc net files (override for testing or non-standard kernels).
+proc_net_tcp: /proc/net/tcp
+proc_net_tcp6: /proc/net/tcp6
