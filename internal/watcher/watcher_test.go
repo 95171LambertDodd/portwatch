@@ -18,13 +18,16 @@ func defaultConfig(interval time.Duration) *config.Config {
 	return cfg
 }
 
-func TestWatcher_RunCancelsCleanly(t *testing.T) {
-	cfg := defaultConfig(50 * time.Millisecond)
+func newTestWatcher(interval time.Duration) (*watcher.Watcher, *bytes.Buffer) {
+	cfg := defaultConfig(interval)
 	scanner := portscanner.NewScanner("/proc/net/tcp")
 	var buf bytes.Buffer
 	alerter := alerting.NewAlerter(&buf)
+	return watcher.New(cfg, scanner, alerter), &buf
+}
 
-	w := watcher.New(cfg, scanner, alerter)
+func TestWatcher_RunCancelsCleanly(t *testing.T) {
+	w, _ := newTestWatcher(50 * time.Millisecond)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Millisecond)
 	defer cancel()
@@ -36,12 +39,7 @@ func TestWatcher_RunCancelsCleanly(t *testing.T) {
 }
 
 func TestWatcher_RunTicksMultipleTimes(t *testing.T) {
-	cfg := defaultConfig(30 * time.Millisecond)
-	scanner := portscanner.NewScanner("/proc/net/tcp")
-	var buf bytes.Buffer
-	alerter := alerting.NewAlerter(&buf)
-
-	w := watcher.New(cfg, scanner, alerter)
+	w, _ := newTestWatcher(30 * time.Millisecond)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
@@ -51,12 +49,7 @@ func TestWatcher_RunTicksMultipleTimes(t *testing.T) {
 }
 
 func TestNew_ReturnsNonNil(t *testing.T) {
-	cfg := defaultConfig(time.Second)
-	scanner := portscanner.NewScanner("/proc/net/tcp")
-	var buf bytes.Buffer
-	alerter := alerting.NewAlerter(&buf)
-
-	w := watcher.New(cfg, scanner, alerter)
+	w, _ := newTestWatcher(time.Second)
 	if w == nil {
 		t.Fatal("expected non-nil watcher")
 	}
