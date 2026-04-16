@@ -47,11 +47,25 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("config: parsing YAML: %w", err)
 	}
 
-	if cfg.ScanInterval <= 0 {
-		return nil, fmt.Errorf("config: scan_interval must be positive")
+	if err := cfg.Validate(); err != nil {
+		return nil, err
 	}
 
 	return cfg, nil
+}
+
+// Validate checks that the configuration values are semantically valid.
+func (c *Config) Validate() error {
+	if c.ScanInterval <= 0 {
+		return fmt.Errorf("config: scan_interval must be positive")
+	}
+	if c.ProcNetTCP == "" {
+		return fmt.Errorf("config: proc_net_tcp path must not be empty")
+	}
+	if c.ProcNetTCP6 == "" {
+		return fmt.Errorf("config: proc_net_tcp6 path must not be empty")
+	}
+	return nil
 }
 
 // IsIgnored reports whether port is in the ignored list.
