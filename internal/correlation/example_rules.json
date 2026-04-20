@@ -1,0 +1,39 @@
+{
+  "rules": [
+    {
+      "port": 22,
+      "protocol": "tcp",
+      "name": "ssh",
+      "description": "Secure Shell daemon",
+      "expected": true
+    },
+    {
+      "port": 80,
+      "protocol": "tcp",
+      "name": "http",
+      "description": "HTTP web server",
+      "expected": true
+    },
+    {
+      "port": 443,
+      "protocol": "tcp",
+      "name": "https",
+      "description": "HTTPS web server",
+      "expected": true
+    },
+    {
+      "port": 53,
+      "protocol": "udp",
+      "name": "dns",
+      "description": "DNS resolver",
+      "expected": true
+    },
+    {
+      "port": 8080,
+      "protocol": "tcp",
+      "name": "dev-http",
+      "description": "Development HTTP server — not expected in production",
+      "expected": false
+    }
+  ]
+}
