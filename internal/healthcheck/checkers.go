@@ -17,7 +17,11 @@ func FileWritableChecker(name, path string) Checker {
 			return ch
 		}
 		f.Close()
-		os.Remove(f.Name())
+		if err := os.Remove(f.Name()); err != nil {
+			ch.Status = StatusDegraded
+			ch.Message = fmt.Sprintf("cannot remove temp file %s: %v", f.Name(), err)
+			return ch
+		}
 		ch.Status = StatusOK
 		return ch
 	}
