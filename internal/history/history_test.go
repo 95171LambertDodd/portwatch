@@ -59,6 +59,35 @@ func TestRecord_And_ReadAll_RoundTrip(t *testing.T) {
 	}
 }
 
+func TestRecord_And_ReadAll_FieldsPreserved(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "history.jsonl")
+
+	r, err := NewRecorder(path)
+	if err != nil {
+		t.Fatalf("NewRecorder: %v", err)
+	}
+
+	orig := sampleEvent("new")
+	if err := r.Record(orig); err != nil {
+		t.Fatalf("Record: %v", err)
+	}
+
+	loaded, err := ReadAll(path)
+	if err != nil {
+		t.Fatalf("ReadAll: %v", err)
+	}
+	if len(loaded) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(loaded))
+	}
+	got := loaded[0]
+	if got.Proto != orig.Proto || got.Addr != orig.Addr || got.Port != orig.Port ||
+		got.PID != orig.PID || got.Process != orig.Process || got.Kind != orig.Kind ||
+		!got.Timestamp.Equal(orig.Timestamp) {
+		t.Errorf("round-tripped event does not match original:\ngot:  %+v\nwant: %+v", got, orig)
+	}
+}
+
 func TestReadAll_NonExistentFile(t *testing.T) {
 	events, err := ReadAll("/tmp/portwatch_no_such_file_xyz.jsonl")
 	if err != nil {
