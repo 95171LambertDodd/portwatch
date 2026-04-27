@@ -5,6 +5,12 @@
 // string. When applied, the masker returns a copy of the entry with the
 // specified fields overwritten, leaving the original untouched.
 //
+// Supported field names:
+//
+//   - "pid"     – the numeric process ID
+//   - "process" – the process name or executable path
+//   - "addr"    – the network address (host:port)
+//
 // Example usage:
 //
 //	m, err := masking.New([]masking.Rule{
